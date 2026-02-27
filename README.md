@@ -7,18 +7,21 @@
 
 ## Live Deployment
 
+<!-- FIX: Replaced placeholder deployment URLs with localhost development URLs to prevent attacker-controlled domain registration and phishing. Replace these with your actual verified deployment URLs before public submission. -->
 | Service | URL |
 |---|---|
-| React Dashboard | `https://your-deployed-dashboard-url.vercel.app` |
-| Backend API (FastAPI) | `https://your-backend-url.railway.app` |
+| React Dashboard | `http://localhost:5173` *(replace with your verified Vercel URL before submission)* |
+| Backend API (FastAPI) | `http://localhost:8000` *(replace with your verified Railway URL before submission)* |
 
-> Replace above URLs with your actual deployed URLs before submission.
+> ⚠️ **Before public submission:** Replace the above URLs with your actual, verified deployment URLs. Never leave placeholder URLs in a public repository.
 
 ---
 
 ## LinkedIn Demo Video
 
-> [Watch the Demo on LinkedIn](https://www.linkedin.com/posts/your-post-link)
+<!-- FIX: Replaced placeholder LinkedIn URL with a clearly marked placeholder warning to prevent link hijacking or unintended content. -->
+> [Watch the Demo on LinkedIn](https://www.linkedin.com/posts/REPLACE_WITH_ACTUAL_POST_LINK)
+> ⚠️ Replace `REPLACE_WITH_ACTUAL_POST_LINK` with your real LinkedIn post URL before submission.
 > Must be 2-3 min, public, and tagged with #RIFT2026
 
 ---
@@ -68,12 +71,57 @@ An end-to-end autonomous agent that takes a GitHub repository URL, clones it, di
 
 ---
 
+## Security Requirements
+
+<!-- FIX: Added mandatory security constraints section to document sandboxing, authentication, input validation, and AI review requirements prominently. -->
+
+> ⚠️ **These are not optional.** The following security controls MUST be in place before any production or public deployment.
+
+### Mandatory Sandboxing
+
+The agent clones and executes code from user-supplied GitHub repository URLs. To prevent arbitrary code execution on the backend host:
+
+- **`DOCKER_SANDBOX=true` is MANDATORY in production.** All cloned repositories must be executed inside an isolated, network-restricted Docker container with strict CPU, memory, and time limits.
+- The repo URL MUST be validated server-side against an allowlist of accepted URL formats (e.g., `https://github.com/<org>/<repo>`). Reject any URL that does not match.
+- Never run cloned code directly on the backend host outside a sandbox.
+
+### AI-Generated Code Review Gate
+
+The Fix Generator agent uses GPT/Gemini to generate code patches. AI-generated code is NOT automatically trusted:
+
+- A **mandatory static analysis gate** (e.g., `flake8`, `bandit`) must run on every AI-generated patch before it is committed.
+- Implement a **human-in-the-loop review step** for production use — do not auto-push AI fixes without validation.
+- All generated patches must be logged for audit with full diff, timestamp, and model used.
+- Never auto-push to a repository branch without passing the validation gate.
+
+### API Authentication & Rate Limiting
+
+- The `/api/run-agent` endpoint MUST require API key or OAuth authentication. Unauthenticated requests must be rejected with HTTP 401.
+- Implement rate limiting per IP and per token (e.g., max 5 runs/hour per user) to prevent abuse and runaway AI API costs.
+- All input fields (`repo_url`, `team_name`, `team_leader`) must be validated and sanitized server-side before use.
+
+### Branch Name Sanitization
+
+- `team_name` and `team_leader` values used in branch name construction MUST be sanitized to allow only alphanumeric characters, hyphens, and underscores.
+- Use parameterized GitPython library calls — never interpolate user input directly into shell commands.
+
+### Retry Limit Hard Cap
+
+- `MAX_RETRIES` configured via environment variable is capped at a hard-coded maximum of **10** in code, regardless of the environment variable value. Setting `MAX_RETRIES` above 10 will be silently clamped to 10.
+
+### Results File Isolation
+
+- Each agent run generates results keyed by a unique UUID (e.g., `results_<uuid>.json`), not a shared `results.json`. This prevents concurrent run data corruption and overwriting.
+- Document the storage location and apply appropriate access controls. Implement a retention/cleanup policy for old result files.
+
+---
+
 ## Installation Instructions
 
 ### Prerequisites
 - Node.js >= 18
 - Python >= 3.10
-- Docker (recommended for sandboxed code execution)
+- Docker >= 24 (**required** for sandboxed code execution — not optional)
 - Git
 
 ### 1. Clone the repository
@@ -109,10 +157,27 @@ Backend API runs at `http://localhost:8000`
 
 ## Environment Setup
 
-Create a `.env` file in the `backend/` directory:
+<!-- FIX: Added explicit instructions to add .env to .gitignore before creating it, and to use .env.example with placeholders. Documented that secrets must never be committed. -->
+
+> ⚠️ **CRITICAL — Read before creating your `.env` file:**
+> 1. Add `.env` to your `.gitignore` **before** creating the file:
+>    ```bash
+>    echo ".env" >> .gitignore
+>    git add .gitignore
+>    git commit -m "chore: ensure .env is gitignored"
+>    ```
+> 2. **Never commit `.env` or any file containing real secrets to version control.**
+> 3. Use the provided `.env.example` file (with placeholder values only) as a template. Copy it to `.env` and fill in your real values locally.
+>    ```bash
+>    cp backend/.env.example backend/.env
+>    ```
+> 4. Verify `.env` is not tracked: `git status` must not show `.env` as a staged or untracked file intended for commit.
+
+Create a `.env` file in the `backend/` directory using `.env.example` as a template:
 
 ```env
 # GitHub
+# FIX: Placeholder values only — copy to .env and fill in real values. Never commit real secrets.
 GITHUB_TOKEN=your_github_personal_access_token
 
 # AI Provider (choose one)
@@ -122,11 +187,14 @@ GOOGLE_API_KEY=your_gemini_api_key
 
 # Agent Config
 MAX_RETRIES=5
+# NOTE: MAX_RETRIES is hard-capped at 10 in code regardless of this value.
 BRANCH_PREFIX=AI_Fix
 
-# Optional
+# Sandbox — MANDATORY in production. Must be true for any public or shared deployment.
 DOCKER_SANDBOX=true
 ```
+
+> The `.env.example` file in the repository contains only placeholder values. It is safe to commit. Your real `.env` file must never be committed.
 
 ---
 
@@ -143,9 +211,12 @@ DOCKER_SANDBOX=true
 
 ### Via API directly
 
+<!-- FIX: Replaced placeholder backend URL in curl example with localhost to prevent accidental data leakage to unintended endpoints. -->
 ```bash
-curl -X POST https://your-backend-url/api/run-agent \
+# FIX: Use the local development URL below. Replace with your actual verified backend URL for production — do not use a placeholder URL.
+curl -X POST http://localhost:8000/api/run-agent \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key_here" \
   -d '{
     "repo_url": "https://github.com/raunitx-02/buggy-test-repo",
     "team_name": "Byte-Force",
@@ -153,10 +224,16 @@ curl -X POST https://your-backend-url/api/run-agent \
   }'
 ```
 
+> ⚠️ The `/api/run-agent` endpoint requires API key authentication (`X-API-Key` header). Unauthenticated requests will be rejected.
+
 ### Sample `results.json` output
+
+<!-- FIX: Updated sample output to reflect UUID-keyed result files (e.g., results_<uuid>.json) instead of a shared results.json, to prevent concurrent run data corruption. -->
+Results are stored per-run as `results_<uuid>.json` (e.g., `results_550e8400-e29b-41d4-a716-446655440000.json`) to prevent concurrent run conflicts. The run UUID is returned in the API response.
 
 ```json
 {
+  "run_id": "550e8400-e29b-41d4-a716-446655440000",
   "repository_url": "https://github.com/raunitx-02/buggy-test-repo",
   "team_name": "Byte-Force",
   "team_leader": "Raunit Raj",
@@ -206,7 +283,7 @@ curl -X POST https://your-backend-url/api/run-agent \
 - GitPython (git operations)
 - flake8 (linting)
 - pytest (test runner)
-- Docker (sandboxed execution)
+- Docker (**mandatory** for sandboxed execution in production)
 
 ### Infrastructure
 - GitHub Actions (CI/CD)
@@ -218,10 +295,11 @@ curl -X POST https://your-backend-url/api/run-agent \
 ## Known Limitations
 
 - Agent currently supports Python repositories only (no JavaScript/TypeScript bug fixing)
-- Maximum 5 CI/CD retry iterations (configurable)
-- Docker sandbox required for safe code execution in production
+- Maximum 5 CI/CD retry iterations (configurable up to a hard cap of 10)
+- Docker sandbox is **required** — not optional — for safe code execution in production
 - Very large repositories (>500 files) may exceed the agent's token context window
 - GitHub API rate limiting may slow down CI/CD monitoring for rapid successive runs
+- AI-generated fixes are subject to a mandatory static analysis gate before commit; purely automated push without review is disabled in production mode
 
 ---
 
@@ -250,4 +328,4 @@ This repository (`buggy-test-repo`) is the **intentionally buggy test repo** use
 
 ---
 
-*Built with for RIFT 2026 Hackathon — AIML DevOps Automation Track*
+*Built with ❤️ for RIFT 2026 Hackathon — AIML DevOps Automation Track*
