@@ -1,29 +1,60 @@
 name: CI - Autonomous Healing Agent Test
 
+# FIX: Added top-level permissions block to enforce least-privilege GITHUB_TOKEN access
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
+
 on:
   push:
-    branches: [ main, '*_AI_Fix' ]
+    # FIX: Removed wildcard branch pattern '*_AI_Fix' to prevent arbitrary actors from triggering workflows via matching branch names
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+
+# FIX: Defined Python version as a top-level env variable to avoid hardcoding and simplify future upgrades
+env:
+  PYTHON_VERSION: '3.10'
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     name: Lint and Test
 
+    # FIX: Added job-level permissions block for additional least-privilege scoping
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: read
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        # FIX: Pinned actions/checkout to immutable commit SHA (v4) to prevent supply-chain attacks via mutable tags
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        # FIX: Upgraded actions/setup-python from v4 to v5 (pinned to immutable commit SHA) for improved stability and security; also enabled pip caching to avoid redundant downloads
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
+          # FIX: Enabled built-in pip caching keyed on requirements.txt to improve performance and reduce network overhead
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # FIX: Added --no-cache-dir to avoid stale cached packages; ideally requirements.txt should be fully pinned with hashes via pip-compile --generate-hashes and installed with --require-hashes
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Check src/ directory exists
+        # FIX: Added explicit guard to verify src/ directory exists before running flake8, preventing obscure failures if directory is absent
+        run: |
+          if [ ! -d "src/" ]; then
+            echo "ERROR: src/ directory not found. Please ensure the expected project structure is in place."
+            exit 1
+          fi
 
       - name: Run flake8 linting
         run: |
@@ -35,7 +66,8 @@ jobs:
           pytest tests/ -v --tb=short --junitxml=test-results.xml
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        # FIX: Upgraded actions/upload-artifact from deprecated v3 to v4, pinned to immutable commit SHA to prevent supply-chain attacks
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: test-results
