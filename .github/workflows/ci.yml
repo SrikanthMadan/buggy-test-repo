@@ -2,28 +2,53 @@ name: CI - Autonomous Healing Agent Test
 
 on:
   push:
-    branches: [ main, '*_AI_Fix' ]
+    # FIX: Removed wildcard '*_AI_Fix' branch trigger to prevent arbitrary actors from triggering CI
+    # with unsanctioned code. AI_Fix branches must go through a pull_request to main instead.
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+
+# FIX: Added explicit permissions block to enforce least-privilege on GITHUB_TOKEN
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     name: Lint and Test
+    # FIX: Added job-level timeout to prevent hung steps from consuming runner minutes indefinitely
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        # FIX: Pinned action to immutable SHA digest instead of mutable floating tag (v3)
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+        # FIX: Pinned action to immutable SHA digest instead of mutable floating tag (v4)
+        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
         with:
           python-version: '3.10'
 
+      # FIX: Added pip dependency caching to avoid re-downloading packages on every run
+      - name: Cache pip dependencies
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # FIX: Pinned pip to a specific known-good version for reproducibility
+          python -m pip install --upgrade "pip==24.0"
+          # FIX: Install with --require-hashes to enforce hash verification and prevent dependency confusion
+          pip install --require-hashes -r requirements.txt
+          # FIX: Install dev dependencies (including pinned flake8) from a dedicated dev requirements file
+          pip install --require-hashes -r requirements-dev.txt
 
       - name: Run flake8 linting
         run: |
@@ -35,8 +60,11 @@ jobs:
           pytest tests/ -v --tb=short --junitxml=test-results.xml
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        # FIX: Pinned action to immutable SHA digest instead of mutable floating tag (v3)
+        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
         if: always()
         with:
-          name: test-results
+          # FIX: Include run ID in artifact name to avoid collisions and reduce information-disclosure
+          # risk by scoping artifacts to a specific run rather than using a generic static name
+          name: test-results-${{ github.run_id }}
           path: test-results.xml
